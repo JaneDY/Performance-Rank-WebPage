@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>战役分析-销售业绩</title>
+<style>
+	th, td{background-color:white;border:0px}
+</style>
+</head>
+<body>
+	<p>
+		<strong style="font-size:20px">Tips:</strong><br/>
+		<b style="font-size:15px;text-indent:40px">1、积分差用于销售排名</b><br/>
+		<b style="font-size:15px;text-indent:40px">2、销售排名时，若全线、专线销售的积分差相同，则可同时输入进行计算</b><br/>
+		<b style="font-size:15px;text-indent:40px">3、文本框中输入格式：无表头，制表符（tab）分隔</b><br/>
+		<pre>
+分析类型为销售排名时，输入如下5列：
+                                    大区 销售员 任务类型 意向 合同  <i title="北京医口区 张三 微生物专线 8 90900&#10;动植物华南区 李四 全线销售 13 161960&#10;......"><U>help</U></i>
+分析类型为区域排名时，输入如下6列：
+                                    大区 销售员 任务类型 意向 合同 加权评分  <i title="北京医口区 张三 微生物专线 8 90900 100&#10;动植物华南区 李四 全线销售 13 161960 98&#10;......"><U>help</U></i>
+		</pre>
+	</p>
+	<hr/>
+  <!-- 这是一个注释 -->
+  <p>
+	<!--
+	<strong>销售类型：</strong>
+	<input type="radio" name="sale_type" value="full_line" />
+	全线销售
+	<input type="radio" name="sale_type" value="dedicated_line" />
+	专线销售
+	-->
+	<strong>分析类型：</strong>
+	<input type="radio" name="sale_type" value="sale_rank" checked/>
+	销售排名
+	<input type="radio" name="sale_type" value="area_rank" />
+	区域排名
+	<br/>
+	<strong>积分差：</strong>
+	<input type="number" step="0.1" id="diff_score" value=2 />
+  </p>
+  <textarea id="input_sale_info" cols=80 rows=10></textarea><br/>
+  <button onclick="myFunction()">提交</button>
+  <button onclick="myReset()">重置</button>
+  <br/>
+  <hr/>
+  <b id="show">Results will show below...</b>
+  <div id="output"><div></div></div>
+  <script>
+	//reset textarea
+	function myReset() {
+		document.getElementById("input_sale_info").value = "";
+	}
+	//output rank result
+  	function myFunction() {
+		var analysis_type = document.getElementsByName("sale_type");
+		var input = document.getElementById("input_sale_info").value;
+		var input_list = input.split('\n');
+		for (var i=0; i<analysis_type.length; i++) {
+			var obj_type = analysis_type[i];
+			if (obj_type.checked === true) {
+				var type = obj_type.value;
+				if (type === "sale_rank") {
+					var diff_score = document.getElementById("diff_score").value;
+					if (diff_score === "") {
+						alert("请输入积分差！")
+						return false;
+					}
+					//read intention,contract separately
+					var temp_intention = {};
+					var temp_contract = {};
+					for (var i=0; i < input_list.length; i++) {
+						if (input_list[i] !== "") {
+							var temp = input_list[i].split('\t');
+							var info_intention = {area: temp[0], sale: temp[1], type: temp[2], count: Number(temp[3])};
+							var info_contract = {area: temp[0], sale: temp[1], type: temp[2], count: Number(temp[4])};
+							if (temp[2] in temp_intention) {
+								temp_intention[temp[2]].push(info_intention);
+								temp_contract[temp[2]].push(info_contract);
+							} else {
+								temp_intention[temp[2]] = [info_intention];
+								temp_contract[temp[2]] = [info_intention];
+							}				
+						}
+					}
+					console.log(temp_intention);
+					document.getElementById("show").innerHTML = "";
+					var table = '';
+					var n = 0;
+					for (var i in temp_intention) {
+						n++;
+						var input_int = temp_intention[i];
+						var input_ctr = temp_contract[i];
+						var each_table = getRankEachSaleType(n, Number(diff_score), input_int, input_ctr);
+						//document.getElementById("title"+n).innerHTML = i;
+						//document.getElementById("output"+n).innerHTML = each_table;
+						table += '<strong id="title" style="color:red">'+i+'</strong>';
+						table += each_table;
+					}
+					document.getElementById("output").innerHTML = table;
+				} else if (type === "area_rank"){
+					//read input info
+					var temp_area_info = [];
+					for (var i=0; i<input_list.length; i++) {
+						if (input_list[i] !== "") {
+							var temp_sale = input_list[i].split('\t');
+							var area = temp_sale[0];
+							var sale = temp_sale[1];
+							var n_int = temp_sale[3];
+							var n_ctr = temp_sale[4];
+							var score = temp_sale[5];
+							if (area in temp_area_info) {
+								temp_area_info[area].push({sale:sale, n_int:n_int, n_ctr:n_ctr, score:score});
+							} else {
+								temp_area_info[area] = [{sale:sale, n_int:n_int, n_ctr:n_ctr, score:score}];
+							}
+						}
+					}
+					console.log(temp_area_info);
+					//stat area rank info
+					var stat_area = [];
+					var total_sale = 0;
+					var total_int = 0;
+					var total_ctr = 0;
+					var total_score = 0;
+					for (var area in temp_area_info) {
+						var temp_area = temp_area_info[area];
+						var sum_sale = 0;
+						var sum_int = 0;
+						var sum_ctr = 0;
+						var sum_score = 0;
+						for (var i=0; i<temp_area.length; i++) {
+							sum_sale++;
+							sum_int += Number(temp_area[i].n_int);
+							sum_ctr += Number(temp_area[i].n_ctr);
+							sum_score += Number(temp_area[i].score);
+						}
+						var mean_score = (sum_score/sum_sale).toFixed(2);
+						stat_area.push({area:area, sum_int:sum_int, sum_ctr:sum_ctr, sum_score:sum_score.toFixed(2), sum_sale:sum_sale, mean_score:mean_score});
+						total_sale += sum_sale;
+						total_int += sum_int;
+						total_ctr += sum_ctr;
+						total_score += sum_score;
+					}
+					var total_mean_score = (total_score/total_sale).toFixed(2);
+					var sort_area = stat_area.sort(sortObj("mean_score", 1));
+					sort_area.push({area:"总计", sum_int:total_int, sum_ctr:total_ctr, sum_score:total_score, sum_sale:total_sale, mean_score:total_mean_score});
+					console.log(sort_area);
+					table = '<strong id="title" style="color:red">区域排名</strong>';
+					table += outputRankInfo(sort_area);
+					document.getElementById("show").innerHTML = "";
+					//document.getElementById("title1").innerHTML = "区域排名";
+					//document.getElementById("output").innerHTML = table;
+					document.getElementById("output").innerHTML = table;
+				}
+			}
+		}
+	}
+	//output area rank info
+	function outputRankInfo(sort_list) {
+		var table = '<table class="result1" cellspacing="1" bgcolor="#cccccc">';
+		table += '<tr>';
+		table += '<th>大区</th><th>意向</th><th>合同</th><th>区域总得分</th><th>人数</th><th>人均得分</th><th>评价</th>';
+		table += '</tr>';
+		for (var i=0; i<sort_list.length; i++) {
+			var temp_row = sort_list[i];
+			table += '<tr>';
+			table += '<td>'+temp_row.area+'</td>';
+			table += '<td>'+temp_row.sum_int+'</td>';
+			table += '<td>'+temp_row.sum_ctr+'</td>';
+			table += '<td>'+temp_row.sum_score+'</td>';
+			table += '<td>'+temp_row.sum_sale+'</td>';
+			table += '<td>'+temp_row.mean_score+'</td>';
+			table += '<td></td>';
+			table += '</tr>';
+		}
+		table += '</table>';
+		return table;
+	}
+	//get rank of each sale type
+	function getRankEachSaleType(index, diff, input_intention, input_contract) {
+		//sort by count of intention,contract
+		var temp_sort1 = input_intention.sort(sortObj("count", 1));
+		var temp_sort2 = input_contract.sort(sortObj("count", 1));
+		//calculate rank of intention,contract
+		var rst_intention = getRank(temp_sort1, diff);
+		var rst_contract = getRank(temp_sort2, diff);
+		//merge rank info
+		if (rst_intention.length !== rst_contract.length) {
+			alert("请检查意向记录及合同记录是否有缺失！");
+			return false;
+		}
+		var by_id_intention = rst_intention.sort(sortObj("id", 0));
+		var by_id_contract = rst_contract.sort(sortObj("id", 0));
+		var by_id_merge_record = [];
+		for (var i=0; i<by_id_intention.length; i++) {
+			var temp_obj_int = by_id_intention[i];
+			var temp_obj_ctr = by_id_contract[i];
+			if (temp_obj_int.id !== temp_obj_ctr.id) {
+				console.log('id not identity!');
+			}
+			var mean_score = ((Number(temp_obj_int.score)+Number(temp_obj_ctr.score))/2).toFixed(2);
+			var id = temp_obj_int.id;
+			var type = temp_obj_int.type;
+			var count_int = temp_obj_int.count;
+			var count_ctr = temp_obj_ctr.count;
+			var grade_int = temp_obj_int.grade;
+			var grade_ctr = temp_obj_ctr.grade;
+			var score_int = temp_obj_int.score;
+			var score_ctr = temp_obj_ctr.score;
+			var record = {id:id, type:type, count_int:count_int, count_ctr:count_ctr, 
+			grade_int:grade_int, grade_ctr:grade_ctr, score_int:score_int, score_ctr:score_ctr, mean_score:mean_score};
+			by_id_merge_record.push(record);
+		}
+		var sort_merge_record = by_id_merge_record.sort(sortObj("mean_score", 1));
+		//output the rank result
+		var table = '<table class="result'+index+'" cellspacing="1" bgcolor="#cccccc">';
+		table += '<tr>';
+		table += '<th>大区</th><th>销售员</th><th>任务类型</th><th>意向</th><th>合同</th>\
+		<th>意向排名</th><th>合同排名</th><th>意向评分</th><th>合同评分</th><th>加权评分</th><th>评价</th>';
+		table += '</tr>';
+		for (var i=0; i<sort_merge_record.length; i++) {
+			var temp_row = sort_merge_record[i];
+			var temp_id = temp_row.id.split('_');
+			table += '<tr>';
+			table += '<td>'+temp_id[0]+'</td>';
+			table += '<td>'+temp_id[1]+'</td>';
+			table += '<td>'+temp_row.type+'</td>';
+			table += '<td>'+temp_row.count_int+'</td>';
+			table += '<td>'+temp_row.count_ctr+'</td>';
+			table += '<td>'+temp_row.grade_int+'</td>';
+			table += '<td>'+temp_row.grade_ctr+'</td>';
+			table += '<td>'+temp_row.score_int+'</td>';
+			table += '<td>'+temp_row.score_ctr+'</td>';
+			table += '<td>'+temp_row.mean_score+'</td>';
+			table += '<td></td>';
+			table += '</tr>';
+		}
+		table += '</table>';
+		return table;
+	}
+	//define sorting function
+    function sortObj(propertyName, cond) {
+		return function(object1, object2) {
+			var value1 = object1[propertyName];
+			var value2 = object2[propertyName];
+			if (cond === 1) {//decreasing
+				if (value2 < value1) {
+					return - 1;
+				} else if (value2 > value1) {
+					return 1;
+				} else {
+					return 0;
+				}
+			} else if (cond === 0) {//increasing
+				if (value2 < value1) {
+					return 1;
+				} else if (value2 > value1) {
+					return -1;
+				} else {
+					return 0;
+				}
+			}
+		}
+	}
+	//define sale ranking function
+	function getRank(List, diff) {
+		var record_list = [];
+		var n = 0;
+		var iterator_i = List;
+		for (var i_iterator_index=0; i_iterator_index < iterator_i.length; i_iterator_index++) {
+			var i = iterator_i[i_iterator_index];
+			var area, sale, type, count, grade, score;
+			area = i.area;
+			sale = i.sale;
+			type = i.type;
+			count = i.count;
+			if (n === 0) {
+				grade = 1;
+				score = 100;
+			} else {
+				if (count === List[(n - 1)].count) {
+					grade = grade;
+					score = score;
+				} else {
+					grade = (n + 1);
+					score = 100 - (diff * n);
+				}
+			}
+			n++;
+			var record = {id:area+'_'+sale, type:type, count:count, grade:grade, score:score.toFixed(1)};
+			record_list.push(record);
+		}
+		return record_list;
+	}
+  </script>
+</body>
+</html>
+
